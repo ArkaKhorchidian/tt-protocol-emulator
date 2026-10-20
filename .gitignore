@@ -13,3 +13,5 @@ test/results.xml
 test/gate_level_netlist.v
 synth/*.log
 __pycache__/
+synth/pdk/
+synth/.synth_local.ys
