@@ -554,13 +554,16 @@ class TxFifo:
         return not self.present or len(self.q) + (self.pend is not None) >= 4
 
 
+RX_DEPTH = 2
+
+
 class RxFifo:
     def __init__(self):
         self.q = []
 
     @property
     def full(self):
-        return len(self.q) >= 4
+        return len(self.q) >= RX_DEPTH
 
 
 NCORES = 3

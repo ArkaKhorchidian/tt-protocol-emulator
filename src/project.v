@@ -216,12 +216,14 @@ module tt_um_arkakhorchidian_polyglot (
           .empty(tx_empty[c]), .full(tx_full[c]), .level(tx_lvl[c])
       );
 
-      pg_fifo #(.W(32), .DEPTH(4), .AW(2)) u_rxf (
+      wire [1:0] rx_lvl2;
+      assign rx_lvl[c] = {1'b0, rx_lvl2};
+      pg_fifo #(.W(32), .DEPTH(2), .AW(1)) u_rxf (
           .clk(clk), .rst_n(rst_n), .clear(fclr_p[c]),
           .push(rx_push), .din(rx_din),
           .pop(h_rd & (h_addr[7:2] == 6'b110100) & (h_addr[1:0] == c)),
           .dout(rx_head[c]),
-          .empty(rx_empty[c]), .full(rx_full[c]), .level(rx_lvl[c])
+          .empty(rx_empty[c]), .full(rx_full[c]), .level(rx_lvl2)
       );
 
       pg_core #(.CORE_ID(c)) u_core (
