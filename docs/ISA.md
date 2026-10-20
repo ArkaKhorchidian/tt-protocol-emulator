@@ -226,6 +226,12 @@ RX: vpin ─► invert ─► NRZI decode ─► stuff removal/check ─► CRC 
   set. Resuming executes that instruction.
 * **Step**: `CTRL.step` gives a disabled core exactly one tick.
 * PC, X, Y, ISR, OSR, CRC and STATUS are readable and writable at any time.
+* **Restart** (`CTRL[7:4]`) clears a core's ISR/OSR and their counts (the
+  OSR becomes empty), the delay, divider, timeout, IRQ-wait, injection,
+  breakpoint-skip and stall state, and the line coder (flags, stuff run,
+  Manchester; NRZI level := `LINE.idle`). PC, X, Y, CRC, DPTR and pin
+  values/directions are kept. A chip reset additionally zeroes those.
+* **FIFO clear** (`CTRL[19:16]`) empties both FIFOs of the selected cores.
 
 ## 7. Registers
 

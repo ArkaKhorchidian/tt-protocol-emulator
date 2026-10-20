@@ -125,12 +125,21 @@ cfg  = programs.uart_config(prog, clkdiv=3, pin=regs.OUT[2])
 # load prog.words at IMEM 0x00, cfg.words() at core regs 0-7, enable via CTRL
 ```
 
+## Bring-up on the Tiny Tapeout demo board
+
+`sw/micropython/polyglot_tt.py` drives the host SPI from the demo board's
+RP2040 through the TT MicroPython SDK. `python -m polyglot.export uart`
+produces a loadable image (program, configuration, bank map and
+initialisation instructions) for it.
+
 ## Layout
 
 | Path | Contents |
 |---|---|
 | `src/` | RTL: `project.v` (top, registers, crossbar), `pg_core.v`, `pg_imem.v`, `pg_fifo*.v`, `pg_host_spi.v` |
-| `sw/polyglot/` | assembler, reference model, register helpers, protocol firmware, model simulator |
+| `sw/polyglot/` | assembler, reference model, register helpers, protocol firmware, model simulator, image exporter |
+| `sw/micropython/` | demo-board host driver |
+| `formal/` | k-induction proofs |
 | `test/` | cocotb tests, lockstep checker, device models |
 | `synth/` | quick Yosys area estimate against the cmos5l liberty |
 | `docs/` | datasheet and ISA reference |
