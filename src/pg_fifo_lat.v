@@ -77,6 +77,17 @@ module pg_fifo_lat #(
 
   assign dout = q[rp];
 
+`ifdef FORMAL
+  // an in-flight write is counted against capacity and lands at wp-1
+  always @* begin
+    if (rst_n) begin
+      assert (cnt + {2'b0, wpend} <= 3'd4);
+      assert (wp == rp + cnt[1:0] + {1'b0, wpend});
+      assert (!wpend || wsel == wp - 2'd1);
+    end
+  end
+`endif
+
 endmodule
 
 `default_nettype wire

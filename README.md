@@ -96,6 +96,9 @@ Implementation notes:
 * **Mutation testing** of the checker. Six deliberately planted model
   bugs, including an off-by-one in autopush, NRZI polarity, and the
   stuff-run reset, are all detected.
+* **Formal**: FIFO bookkeeping invariants are proved by k-induction with
+  Yosys' SAT solver (`formal/run.sh`). The assertions live in the RTL
+  under `ifdef FORMAL`, and a deliberately false bound is shown to fail.
 * **Protocol tests** against independent bus-functional models
   (`test/bfm.py`, `test/bfm_wire.py`). These are black-box, pins and SPI
   only, so they also apply to the gate-level netlist.

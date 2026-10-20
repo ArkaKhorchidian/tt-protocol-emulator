@@ -15,3 +15,4 @@ synth/*.log
 __pycache__/
 synth/pdk/
 synth/.synth_local.ys
+formal/*.log

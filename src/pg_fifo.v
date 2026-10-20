@@ -57,6 +57,16 @@ module pg_fifo #(
     end
   end
 
+`ifdef FORMAL
+  // bookkeeping invariants (formal/run.sh proves them by k-induction)
+  always @* begin
+    if (rst_n) begin
+      assert (cnt <= DEPTH);
+      assert (wp == rp + cnt[AW-1:0]);
+    end
+  end
+`endif
+
 endmodule
 
 `default_nettype wire

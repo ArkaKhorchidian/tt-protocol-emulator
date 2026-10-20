@@ -1,0 +1,5 @@
+read_verilog -DPG_BEHAVIORAL -formal ../src/pg_fifo.v ../src/pg_fifo_lat.v ../src/pg_imem.v fifo_props.v
+prep -top fifo_props
+async2sync
+dffunmap
+sat -tempinduct -prove-asserts -set-assumes -seq 1 -maxsteps 12 -show-ports -verify
