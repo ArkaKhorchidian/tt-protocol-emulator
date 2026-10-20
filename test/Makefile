@@ -6,13 +6,15 @@ SIM ?= icarus
 FST ?= -fst # Use more efficient FST format
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = project.v
+PROJECT_SOURCES = project.v pg_core.v pg_fifo.v pg_fifo_lat.v pg_imem.v pg_host_spi.v
 
 ifneq ($(GATES),yes)
 
 # RTL simulation:
 SIM_BUILD				= sim_build/rtl
 VERILOG_SOURCES += $(addprefix $(SRC_DIR)/,$(PROJECT_SOURCES))
+# behavioural models for the latch / clock-gate cells used by the memories
+COMPILE_ARGS    += -DPG_BEHAVIORAL
 
 else
 

@@ -1,0 +1,8 @@
+read_verilog -lib synth/cells_bb.v
+read_verilog src/project.v src/pg_core.v src/pg_fifo.v src/pg_imem.v src/pg_host_spi.v src/pg_fifo_lat.v
+hierarchy -check -top tt_um_arkakhorchidian_polyglot
+synth -top tt_um_arkakhorchidian_polyglot
+dfflibmap -liberty ../pdk/sg13cmos5l_stdcell_typ_1p20V_25C.lib
+abc -liberty ../pdk/sg13cmos5l_stdcell_typ_1p20V_25C.lib
+opt_clean
+stat -liberty ../pdk/sg13cmos5l_stdcell_typ_1p20V_25C.lib
