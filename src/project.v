@@ -316,7 +316,7 @@ module tt_um_arkakhorchidian_polyglot (
         default: h_rdata = 32'h0;
       endcase
     end else if (h_addr[7:2] == 6'b110100) begin
-      h_rdata = rx_head[h_addr[1:0]];
+      h_rdata = rx_empty[h_addr[1:0]] ? 32'h0 : rx_head[h_addr[1:0]];
     end
   end
 
