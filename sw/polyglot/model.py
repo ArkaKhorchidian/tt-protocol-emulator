@@ -537,12 +537,12 @@ class Core:
 class TxFifo:
     """Latch FIFO: entries become visible one cycle after the push."""
 
-    def __init__(self):
-        self.q, self.pend = [], None
+    def __init__(self, present=True):
+        self.q, self.pend, self.present = [], None, present
 
     @property
     def full(self):
-        return len(self.q) + (self.pend is not None) >= 4
+        return not self.present or len(self.q) + (self.pend is not None) >= 4
 
 
 class RxFifo:
@@ -554,12 +554,16 @@ class RxFifo:
         return len(self.q) >= 4
 
 
+NCORES = 3
+
+
 class Chip:
-    def __init__(self):
+    def __init__(self, ncores=NCORES):
+        self.ncores = ncores
         self.cores = [Core(i) for i in range(4)]
         self.imem = [None] * 128          # None = never written (X in RTL)
         self.imem_pend = None
-        self.txf = [TxFifo() for _ in range(4)]
+        self.txf = [TxFifo(i < ncores) for i in range(4)]
         self.rxf = [RxFifo() for _ in range(4)]
         self.core_en = 0
         self.halted = 0
@@ -605,7 +609,8 @@ class Chip:
         pc = self.cores[cid].pc
         bank = pc >> 5
         owner = (self.bankmap >> (2 * bank)) & 3
-        w = self.imem[bank * 32 + (self.cores[owner].pc & 31)]
+        opc = self.cores[owner].pc if owner < self.ncores else 0
+        w = self.imem[bank * 32 + (opc & 31)]
         return 0 if w is None else w
 
     # -------- host access --------
@@ -614,6 +619,8 @@ class Chip:
         if addr & 0xC0 == 0x80:
             c = self.cores[(addr >> 4) & 3]
             r = addr & 15
+            if c.cid >= self.ncores:
+                return 0
             return {8: c.crc, 9: c.pc, 10: c.x, 11: c.y, 12: c.isr, 13: c.osr,
                     14: c.status(), 15: self.fetch_raw(c.cid)}.get(r, 0)
         if addr & 0xF0 == 0xC0:
@@ -655,7 +662,7 @@ class Chip:
 
         # ---- cores ----
         results = []
-        for i, c in enumerate(self.cores):
+        for i, c in enumerate(self.cores[:self.ncores]):
             vin = 0
             for k in range(8):
                 vin |= ((phys >> c.cfg.pinmap(k)) & 1) << k
@@ -689,7 +696,7 @@ class Chip:
         if rd is not None and rd & 0xFC == 0xD0 and not rx_empty_pre[rd & 3]:
             self.rxf[rd & 3].q.pop(0)
 
-        for i, c in enumerate(self.cores):
+        for i, c in enumerate(self.cores[:self.ncores]):
             for f, v in results[i][0].items():
                 setattr(c, f, v)
             if (restart >> i) & 1:
@@ -697,7 +704,7 @@ class Chip:
             if (divsync >> i) & 1:
                 c.div = 0
             if (fclr >> i) & 1:
-                self.txf[i] = TxFifo()
+                self.txf[i] = TxFifo(True)
                 self.rxf[i] = RxFifo()
 
         if self.imem_pend is not None:
@@ -717,7 +724,7 @@ class Chip:
             data &= M32
             if addr < 0x80:
                 self.imem_pend = (addr, data & 0xFFFFF)
-            elif addr & 0xC0 == 0x80:
+            elif addr & 0xC0 == 0x80 and ((addr >> 4) & 3) < self.ncores:
                 c = self.cores[(addr >> 4) & 3]
                 r = addr & 15
                 if r < 8: c.cfg.write(r, data)
@@ -731,7 +738,7 @@ class Chip:
             elif addr & 0xF0 == 0xC0:
                 r = addr & 15
                 if r == 1:
-                    self.core_en = data & 15
+                    self.core_en = data & ((1 << self.ncores) - 1)
                     self.halted = halted_pre & ~data & 15
                     new_pulses = ((data >> 4) & 15, (data >> 8) & 15,
                                   (data >> 12) & 15, (data >> 16) & 15)

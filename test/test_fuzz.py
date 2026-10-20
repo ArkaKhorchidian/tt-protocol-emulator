@@ -7,6 +7,8 @@ import os
 import random
 
 import cocotb
+
+NC = int(os.environ.get("PG_NCORES", "3"))
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge
 
@@ -123,23 +125,23 @@ async def test_random_lockstep(dut):
         for b in range(4):
             prog += [rand_instr(rng, 32 * b, 32 * b + 31, 32 * b + a) for a in range(32)]
         await host.load_program(prog)
-        for c in range(4):
+        for c in range(NC):
             await host.write(creg(c, 0), rand_cfg(rng, c))
             if rng.random() < 0.5:
                 await host.write(creg(c, 10), [rng.getrandbits(32), rng.getrandbits(32)])
         if rng.random() < 0.3:
             await host.write(G_BANKMAP, rng.getrandbits(8))
         await host.write(G_IRQMASK, rng.getrandbits(16))
-        await host.push(rng.randrange(4), [rng.getrandbits(32) for _ in range(rng.randrange(1, 5))])
+        await host.push(rng.randrange(NC), [rng.getrandbits(32) for _ in range(rng.randrange(1, 5))])
 
         stop = [False]
         cocotb.start_soon(stimulus(dut, host, rng, stop))
-        await host.ctrl(en=15)
+        await host.ctrl(en=(1 << NC) - 1)
 
         start = ls.cycles
         while ls.cycles - start < CYCLES and ls.running:
             r = rng.random()
-            c = rng.randrange(4)
+            c = rng.randrange(NC)
             if r < 0.25:
                 await host.push(c, [rng.getrandbits(32) for _ in range(rng.randrange(1, 4))])
             elif r < 0.50:

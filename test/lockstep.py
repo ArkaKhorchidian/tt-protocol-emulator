@@ -36,7 +36,9 @@ class Lockstep:
         self.cycles = 0
         self.errors = []
         self.running = True
-        self._cores = [self.top.g_core[i].u_core for i in range(4)]
+        self.n = int(os.environ.get("PG_NCORES", "3"))
+        self.model = Chip(self.n)
+        self._cores = [self.top.g_core[i].g_on.u_core for i in range(self.n)]
 
     def _v(self, sig):
         return int(sig.value)
@@ -72,8 +74,8 @@ class Lockstep:
                     rv, mv = self._v(getattr(rc, rf)), getattr(mc, mf)
                     if rv != mv:
                         self.errors.append(f"cycle {self.cycles}: core{i}.{mf} rtl={rv} model={mv}")
-            for i2, (rt, mt) in enumerate(((self.top.g_core[i].u_txf.cnt, len(m.txf[i].q)),
-                                           (self.top.g_core[i].u_rxf.cnt, len(m.rxf[i].q)))):
+            for i2, (rt, mt) in enumerate(((self.top.g_core[i].g_on.u_txf.cnt, len(m.txf[i].q)),
+                                           (self.top.g_core[i].g_on.u_rxf.cnt, len(m.rxf[i].q)))):
                 if self._v(rt) != mt:
                     self.errors.append(f"cycle {self.cycles}: core{i} {'tx' if i2 == 0 else 'rx'} level rtl={self._v(rt)} model={mt}")
 
@@ -92,7 +94,7 @@ class Lockstep:
             if not self.running:
                 break
             if not self._v(self.dut.rst_n):
-                self.model = Chip()
+                self.model = Chip(self.n)
                 continue
             self.model.miso = self._v(top.miso)
             # what the chip actually latched at the last edge (race-free with

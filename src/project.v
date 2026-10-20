@@ -17,6 +17,12 @@
 
 `default_nettype none
 
+// Number of cores. The register map always has room for 4; the 6x4-tile
+// build uses 3 to leave routing headroom.
+`ifndef PG_NCORES
+`define PG_NCORES 3
+`endif
+
 module tt_um_arkakhorchidian_polyglot (
     input  wire [7:0] ui_in,
     output wire [7:0] uo_out,
@@ -27,6 +33,9 @@ module tt_um_arkakhorchidian_polyglot (
     input  wire       clk,
     input  wire       rst_n
 );
+
+  localparam NC = `PG_NCORES;
+  localparam [3:0] CMASK = (4'h1 << NC) - 4'h1;
 
   // ------------------------------------------------------------------
   // Input synchronisers
@@ -101,7 +110,7 @@ module tt_um_arkakhorchidian_polyglot (
       core_en   <= core_en & ~brk_hit;
       halted    <= halted | brk_hit;
       if (glob_ctrl) begin
-        core_en   <= h_wdata[3:0];
+        core_en   <= h_wdata[3:0] & CMASK;
         halted    <= halted & ~h_wdata[3:0];
         restart_p <= h_wdata[7:4];
         step_p    <= h_wdata[11:8];
@@ -189,6 +198,7 @@ module tt_um_arkakhorchidian_polyglot (
   genvar c, k;
   generate
     for (c = 0; c < 4; c = c + 1) begin : g_core
+     if (c < NC) begin : g_on
       wire [7:0]  vin;
       wire        tx_pop, rx_push;
       wire [31:0] rx_din;
@@ -234,6 +244,22 @@ module tt_um_arkakhorchidian_polyglot (
           .x_o(c_x[c]), .y_o(c_y[c]), .isr_o(c_isr[c]), .osr_o(c_osr[c]),
           .crc_o(c_crc[c]), .status_o(c_stat[c]), .instr_o(c_instr[c])
       );
+     end else begin : g_off
+      assign pmap[c] = 40'h0;
+      assign pcs[7*c +: 7] = 7'd0;
+      assign core_vout[c] = 8'h0;
+      assign core_voe[c]  = 8'h0;
+      assign core_iset[c] = 8'h0;
+      assign core_iclr[c] = 8'h0;
+      assign brk_hit[c]   = 1'b0;
+      assign c_x[c] = 32'h0; assign c_y[c] = 32'h0; assign c_isr[c] = 32'h0;
+      assign c_osr[c] = 32'h0; assign c_crc[c] = 32'h0; assign c_stat[c] = 32'h0;
+      assign c_instr[c] = 20'h0;
+      assign tx_head[c] = 32'h0; assign rx_head[c] = 32'h0;
+      assign tx_empty[c] = 1'b1; assign tx_full[c] = 1'b1;
+      assign rx_empty[c] = 1'b1; assign rx_full[c] = 1'b0;
+      assign tx_lvl[c] = 3'd0; assign rx_lvl[c] = 3'd0;
+     end
     end
   endgenerate
 
