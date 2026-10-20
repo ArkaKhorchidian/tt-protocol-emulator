@@ -40,7 +40,7 @@ OP = dict(jmp=0, wait=1, in_=2, out=3, pp=4, mov=5, irq=6, set=7, add=8, ctl=9)
 
 JMP_COND = {
     "": 0, "always": 0, "!x": 1, "x--": 2, "!y": 3, "y--": 4, "x!=y": 5,
-    "pin": 6, "!pin": 7, "!osre": 8, "txne": 9, "timeout": 10, "stuff": 11,
+    "pin": 6, "!pin": 7, "!osre": 8, "txne": 9, "timeout": 10, "stuffdue": 11,
     "err": 12, "x<y": 13, "lastbit": 14, "isrfull": 15,
 }
 IN_SRC = dict(pins=0, x=1, y=2, null=3, line=4, time=5, isr=6, osr=7)

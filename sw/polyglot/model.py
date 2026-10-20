@@ -249,7 +249,7 @@ class Core:
             cond = [True, s.x == 0, s.x != 0, s.y == 0, s.y != 0, s.x != s.y,
                     bool((vin >> c.jmp_pin) & 1), not ((vin >> c.jmp_pin) & 1),
                     s.osr_cnt < c.pull_th, not tx_empty, bool(s.to),
-                    bool(s.stuff_flag), bool((s.lflags >> 3) & 1), s.x < s.y,
+                    bool(stuff_due), bool((s.lflags >> 3) & 1), s.x < s.y,
                     bool(s.last_bit), s.isr_cnt >= c.push_th][cc]
             if cond:
                 jump = arg & 0x7F

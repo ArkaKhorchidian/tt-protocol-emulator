@@ -78,6 +78,14 @@ class Lockstep:
                     self.errors.append(f"cycle {self.cycles}: core{i} {'tx' if i2 == 0 else 'rx'} level rtl={self._v(rt)} model={mt}")
 
     async def run(self, max_errors=10):
+        try:
+            await self._run(max_errors)
+        except Exception as e:          # report instead of dying silently
+            import traceback
+            self.errors.append(f"cycle {self.cycles}: checker crashed: {e!r}\n{traceback.format_exc()}")
+            self.running = False
+
+    async def _run(self, max_errors):
         top = self.top
         while self.running:
             await FallingEdge(self.dut.clk)
@@ -87,6 +95,9 @@ class Lockstep:
                 self.model = Chip()
                 continue
             self.model.miso = self._v(top.miso)
+            # what the chip actually latched at the last edge (race-free with
+            # testbench coroutines that change inputs on the same edge)
+            self.model.sync1 = self._v(top.sync1)
             self.compare()
             if len(self.errors) >= max_errors:
                 self.running = False

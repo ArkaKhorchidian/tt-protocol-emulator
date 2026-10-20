@@ -7,7 +7,7 @@ samples MISO on uo_out[0]. ui_in[7:3] stay available to tests as protocol
 inputs through `set_inputs`.
 """
 
-from cocotb.triggers import ClockCycles, RisingEdge
+from cocotb.triggers import ClockCycles, Lock, RisingEdge
 
 # register map
 IMEM = 0x00
@@ -28,6 +28,7 @@ class Host:
         self.dut = dut
         self.half = half          # SCK half period in system clocks
         self.ui_hi = 0            # ui_in[7:3]
+        self.lock = Lock()        # one SPI transaction at a time
         self._ui(sck=0, cs=1, mosi=0)
 
     def _ui(self, sck, cs, mosi):
@@ -40,6 +41,10 @@ class Host:
         self._ui(self._sck, self._cs, self._mosi)
 
     async def xfer(self, data):
+        async with self.lock:
+            return await self._xfer(data)
+
+    async def _xfer(self, data):
         clk = self.dut.clk
         out = []
         self._ui(0, 0, 0)
@@ -85,6 +90,18 @@ class Host:
         if isinstance(words, int):
             words = [words]
         await self.write(FIFO + core, words)
+
+    async def push_wait(self, core, words, depth=4):
+        """Push with flow control: never overfill the TX FIFO."""
+        words = list(words)
+        while words:
+            tx, _ = await self.fifo_levels(core)
+            room = depth - tx
+            if room <= 0:
+                await ClockCycles(self.dut.clk, 200)
+                continue
+            await self.push(core, words[:room])
+            words = words[room:]
 
     async def pop(self, core, n=1):
         return await self.read(FIFO + core, n)

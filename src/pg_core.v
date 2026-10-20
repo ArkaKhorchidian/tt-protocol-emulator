@@ -340,7 +340,7 @@ module pg_core #(
       4'd8:  cond = (osr_cnt < pull_th);
       4'd9:  cond = ~tx_empty;
       4'd10: cond = to_flag;
-      4'd11: cond = stuff_flag;
+      4'd11: cond = stuff_due;
       4'd12: cond = lflags[3];
       4'd13: cond = (x < y);
       4'd14: cond = last_bit;
