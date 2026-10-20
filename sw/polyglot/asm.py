@@ -24,7 +24,7 @@ Syntax summary (case-insensitive, ';' or '//' comments):
     pull  [ifempty] [block|noblock]
     mov   <pins|x|y|pindirs|crc|pc|isr|osr>, [~|!|::|><]<pins|x|y|null|crc|time|isr|osr>
     irq   [set|wait|clear] <0..7> [rel]
-    set   <pins|x|y|pindirs>, <0..255>
+    set   <pins|x|y|pindirs|dptr>, <0..255>
     add   <x|y>, <-512..511>
     ctl   [crc on|off] [stuff on|off] [code on|off] [err clear|set] [reset]  (comma separated)
     nop
@@ -47,7 +47,7 @@ IN_SRC = dict(pins=0, x=1, y=2, null=3, line=4, time=5, isr=6, osr=7)
 OUT_DST = dict(pins=0, x=1, y=2, null=3, line=4, pindirs=5, pc=6, isr=7)
 MOV_DST = dict(pins=0, x=1, y=2, pindirs=3, crc=4, pc=5, isr=6, osr=7)
 MOV_SRC = dict(pins=0, x=1, y=2, null=3, crc=4, time=5, isr=6, osr=7)
-SET_DST = dict(pins=0, x=1, y=2, pindirs=3)
+SET_DST = dict(pins=0, x=1, y=2, pindirs=3, dptr=4)
 WAIT_SRC = dict(pin=0, gpio=0, irq=1, edge=2)
 
 

@@ -43,7 +43,7 @@ TOPLEVEL = tb
 ifeq ($(GATES),yes)
 COCOTB_TEST_MODULES ?= test
 else
-COCOTB_TEST_MODULES ?= test,test_fuzz
+COCOTB_TEST_MODULES ?= test,test_fuzz,test_protocols,test_stretch
 endif
 
 # include cocotb's make rules to take care of the simulator setup

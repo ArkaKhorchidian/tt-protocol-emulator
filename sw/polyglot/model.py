@@ -54,7 +54,7 @@ class Cfg:
     def write(self, reg, v):
         if reg == 0: self.clkdiv = v & 0xFFFF
         elif reg == 1: self.exec_ = v & M32
-        elif reg == 2: self.shift = v & 0x3FFF
+        elif reg == 2: self.shift = v & 0x7FFF
         elif reg == 3: self.pin = v & 0xFFF
         elif reg == 4: self.pmlo = v & 0xFFFFF
         elif reg == 5: self.pmhi = v & 0xFFFFF
@@ -77,6 +77,7 @@ class Cfg:
     in_right = property(lambda s: (s.shift >> 3) & 1)
     pull_th = property(lambda s: ((s.shift >> 4) & 31) or 32)
     push_th = property(lambda s: ((s.shift >> 9) & 31) or 32)
+    pull_imem = property(lambda s: (s.shift >> 14) & 1)
     # pins
     out_base = property(lambda s: s.pin & 7)
     set_base = property(lambda s: (s.pin >> 3) & 7)
@@ -106,7 +107,7 @@ def cov(key):
 
 
 class Core:
-    FIELDS = ("pc x y isr osr crc isr_cnt osr_cnt delay div vin_prev vout voe "
+    FIELDS = ("pc dptr x y isr osr crc isr_cnt osr_cnt delay div vin_prev vout voe "
               "to armed inj_pend inj_instr brk_skip stalled lflags run_cnt "
               "run_val nrzi_prev manch_pend manch_cnt manch_lvl last_bit "
               "stuff_flag").split()
@@ -136,11 +137,14 @@ class Core:
         self.manch_pend = 0; self.stuff_flag = 0
 
     # ------------------------------------------------------------------
-    def step(self, en, step, vin, fetched, tx_empty, tx_data, rx_full, irq, time):
+    def step(self, en, step, vin, fetched, tx_empty, tx_data, rx_full, irq, time, dmem=0):
         """Compute one clock. Returns (next_state_dict, effects)."""
         c = self.cfg
         s = self
         n = self.snapshot()
+        fifo_empty = tx_empty              # for the txne jump condition
+        if c.pull_imem:                    # pulls come from imem[dptr]
+            tx_empty, tx_data = False, dmem
         eff = dict(tx_pop=False, rx_push=None, irq_set=0, irq_clr=0, brk_hit=False)
 
         run_tick = en and s.div == 0
@@ -248,7 +252,7 @@ class Core:
             if cc == 4: n["y"] = (s.y - 1) & M32
             cond = [True, s.x == 0, s.x != 0, s.y == 0, s.y != 0, s.x != s.y,
                     bool((vin >> c.jmp_pin) & 1), not ((vin >> c.jmp_pin) & 1),
-                    s.osr_cnt < c.pull_th, not tx_empty, bool(s.to),
+                    s.osr_cnt < c.pull_th, not fifo_empty, bool(s.to),
                     bool(stuff_due), bool((s.lflags >> 3) & 1), s.x < s.y,
                     bool(s.last_bit), s.isr_cnt >= c.push_th][cc]
             if cond:
@@ -335,6 +339,8 @@ class Core:
                     if refill:
                         eff["tx_pop"] = True
                         osr, ocnt = tx_data, 0
+                        if c.pull_imem:
+                            n["dptr"] = (s.dptr + 1) & 0x7F
                     if c.out_right:
                         data = osr & mask(cnt)
                         n["osr"] = 0 if cnt == 32 else osr >> cnt
@@ -379,6 +385,8 @@ class Core:
                 else:
                     eff["tx_pop"] = True
                     n["osr"], n["osr_cnt"] = tx_data, 0
+                    if c.pull_imem:
+                        n["dptr"] = (s.dptr + 1) & 0x7F
 
         # -------------------------------------------------------- MOV
         elif op == 5:
@@ -420,6 +428,7 @@ class Core:
             elif hi == 1: n["x"] = v
             elif hi == 2: n["y"] = v
             elif hi == 3: pin_write = (True, c.set_base, c.set_count, v)
+            elif hi == 4: n["dptr"] = v & 0x7F
 
         # -------------------------------------------------------- ADD
         elif op == 8:
@@ -605,13 +614,22 @@ class Chip:
         uo = self.outputs()["uo_out"]
         return ((val >> 24) & 0xFF) << 24 | uo << 16 | self.sync2
 
-    def fetch(self, cid):
-        pc = self.cores[cid].pc
-        bank = pc >> 5
+    def bank_word(self, bank):
+        """Read port of a bank: owner's pc if it executes there, else its dptr."""
         owner = (self.bankmap >> (2 * bank)) & 3
-        opc = self.cores[owner].pc if owner < self.ncores else 0
-        w = self.imem[bank * 32 + (opc & 31)]
+        if owner < self.ncores:
+            o = self.cores[owner]
+            a = o.pc if (o.pc >> 5) == bank else o.dptr
+        else:
+            a = 0
+        w = self.imem[bank * 32 + (a & 31)]
         return 0 if w is None else w
+
+    def fetch(self, cid):
+        return self.bank_word(self.cores[cid].pc >> 5)
+
+    def fetch_data(self, cid):
+        return self.bank_word(self.cores[cid].dptr >> 5)
 
     # -------- host access --------
     def read(self, addr):
@@ -670,7 +688,7 @@ class Chip:
             tx_empty = len(tf.q) == 0
             results.append(c.step(
                 en=bool((self.core_en >> i) & 1), step=bool((step >> i) & 1),
-                vin=vin, fetched=self.fetch(i), tx_empty=tx_empty,
+                vin=vin, fetched=self.fetch(i), dmem=self.fetch_data(i), tx_empty=tx_empty,
                 tx_data=tf.q[0] if tf.q else 0, rx_full=rf.full,
                 irq=self.irq, time=self.timer))
 
@@ -685,7 +703,7 @@ class Chip:
 
         for i, (n, eff) in enumerate(results):
             tf, rf = self.txf[i], self.rxf[i]
-            if eff["tx_pop"] and tf.q:
+            if eff["tx_pop"] and tf.q and not self.cores[i].cfg.pull_imem:
                 tf.q.pop(0)
             if eff["rx_push"] is not None and not rf.full:
                 rf.q.append(eff["rx_push"])

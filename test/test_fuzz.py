@@ -58,7 +58,7 @@ def rand_instr(rng, lo=0, hi=127, here=None):
         wait = 1 if rng.random() < 0.15 else 0
         op, arg = 6, (rng.randrange(2) << 6) | (wait << 5) | (rng.randrange(2) << 4) | rng.randrange(8)
     elif kind == "set":
-        dst = rng.choice([0, 1, 2, 2, 2, 3])
+        dst = rng.choice([0, 1, 2, 2, 2, 3, 4])
         v = rng.randrange(256) if dst != 2 else rng.randrange(12)   # small Y for timeouts
         op, arg = 7, (dst << 8) | v
     elif kind == "add":
@@ -79,7 +79,7 @@ def rand_cfg(rng, core):
              (rng.randrange(8) << 18) | (rng.randrange(8) << 21))
     if rng.random() < 0.1:
         exec_ |= (1 << 31) | (rng.randrange(lo, hi + 1) << 24)
-    shift = rng.randrange(1 << 14)
+    shift = rng.randrange(1 << 15) if rng.random() < 0.25 else rng.randrange(1 << 14)
     shift &= ~3
     shift |= (rng.random() < 0.4) | ((rng.random() < 0.5) << 1)   # autopull, autopush
     if rng.random() < 0.5:

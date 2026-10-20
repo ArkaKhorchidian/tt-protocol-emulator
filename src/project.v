@@ -133,7 +133,7 @@ module tt_um_arkakhorchidian_polyglot (
   // ------------------------------------------------------------------
   reg [15:0] cfg_clkdiv [0:3];
   reg [31:0] cfg_exec   [0:3];
-  reg [13:0] cfg_shift  [0:3];
+  reg [14:0] cfg_shift  [0:3];
   reg [11:0] cfg_pin    [0:3];
   reg [19:0] cfg_pmlo   [0:3];
   reg [19:0] cfg_pmhi   [0:3];
@@ -146,7 +146,7 @@ module tt_um_arkakhorchidian_polyglot (
       for (i = 0; i < 4; i = i + 1) begin
         cfg_clkdiv[i] <= 16'h0;
         cfg_exec[i]   <= 32'h00001F00;   // wrap 0..31
-        cfg_shift[i]  <= 14'h000C;       // shift right (LSB first), thresholds 32
+        cfg_shift[i]  <= 15'h000C;       // shift right (LSB first), thresholds 32
         cfg_pin[i]    <= 12'h0;
         cfg_pmlo[i]   <= 20'h0;
         cfg_pmhi[i]   <= 20'h0;
@@ -157,7 +157,7 @@ module tt_um_arkakhorchidian_polyglot (
       case (wr_reg)
         4'h0: cfg_clkdiv[wc] <= h_wdata[15:0];
         4'h1: cfg_exec[wc]   <= h_wdata;
-        4'h2: cfg_shift[wc]  <= h_wdata[13:0];
+        4'h2: cfg_shift[wc]  <= h_wdata[14:0];
         4'h3: cfg_pin[wc]    <= h_wdata[11:0];
         4'h4: cfg_pmlo[wc]   <= h_wdata[19:0];
         4'h5: cfg_pmhi[wc]   <= h_wdata[19:0];
@@ -171,12 +171,12 @@ module tt_um_arkakhorchidian_polyglot (
   // ------------------------------------------------------------------
   // Instruction memory
   // ------------------------------------------------------------------
-  wire [27:0] pcs;
-  wire [79:0] imem_q;
+  wire [27:0] pcs, dptrs;
+  wire [79:0] imem_q, dmem_q;
 
   pg_imem u_imem (
       .clk(clk), .rst_n(rst_n), .we(wr_imem), .waddr(h_waddr[6:0]), .wdata(h_wdata[19:0]),
-      .bankmap(bankmap), .pcs(pcs), .rdata(imem_q)
+      .bankmap(bankmap), .pcs(pcs), .dptrs(dptrs), .rdata(imem_q), .ddata(dmem_q)
   );
 
   // ------------------------------------------------------------------
@@ -232,6 +232,7 @@ module tt_um_arkakhorchidian_polyglot (
           .cfg_shift(cfg_shift[c]), .cfg_pin(cfg_pin[c]),
           .cfg_line(cfg_line[c]), .cfg_poly(cfg_poly[c]),
           .pc_o(pcs[7*c +: 7]), .imem_data(imem_q[20*c +: 20]),
+          .dptr_o(dptrs[7*c +: 7]), .dmem_data(dmem_q[20*c +: 20]),
           .hw_pc(hsel & (wr_reg == 4'h9)), .hw_x(hsel & (wr_reg == 4'hA)),
           .hw_y(hsel & (wr_reg == 4'hB)), .hw_crc(hsel & (wr_reg == 4'h8)),
           .hw_isr(hsel & (wr_reg == 4'hC)), .hw_osr(hsel & (wr_reg == 4'hD)),
@@ -247,6 +248,7 @@ module tt_um_arkakhorchidian_polyglot (
      end else begin : g_off
       assign pmap[c] = 40'h0;
       assign pcs[7*c +: 7] = 7'd0;
+      assign dptrs[7*c +: 7] = 7'd0;
       assign core_vout[c] = 8'h0;
       assign core_voe[c]  = 8'h0;
       assign core_iset[c] = 8'h0;

@@ -31,14 +31,16 @@ module pg_core #(
     // configuration
     input  wire [15:0] cfg_clkdiv,
     input  wire [31:0] cfg_exec,
-    input  wire [13:0] cfg_shift,
+    input  wire [14:0] cfg_shift,
     input  wire [11:0] cfg_pin,
     input  wire [23:0] cfg_line,
     input  wire [31:0] cfg_poly,
 
-    // instruction memory
+    // instruction memory: fetch at pc, data at dptr
     output wire [6:0]  pc_o,
     input  wire [19:0] imem_data,
+    output wire [6:0]  dptr_o,
+    input  wire [19:0] dmem_data,
 
     // host direct register writes
     input  wire        hw_pc,
@@ -101,6 +103,7 @@ module pg_core #(
   wire       in_right   = cfg_shift[3];
   wire [5:0] pull_th    = (cfg_shift[8:4]  == 5'd0) ? 6'd32 : {1'b0, cfg_shift[8:4]};
   wire [5:0] push_th    = (cfg_shift[13:9] == 5'd0) ? 6'd32 : {1'b0, cfg_shift[13:9]};
+  wire       pull_imem  = cfg_shift[14];   // PULL / autopull read imem[dptr++]
 
   wire [2:0] out_base   = cfg_pin[2:0];
   wire [2:0] set_base   = cfg_pin[5:3];
@@ -121,6 +124,7 @@ module pg_core #(
   // Architectural state
   // ------------------------------------------------------------------
   reg [6:0]  pc;
+  reg [6:0]  dptr;
   reg [31:0] x, y, isr, osr, crc;
   reg [5:0]  isr_cnt, osr_cnt;
   reg [4:0]  delay_cnt;
@@ -145,6 +149,7 @@ module pg_core #(
   reg        stuff_flag;
 
   assign pc_o  = pc;
+  assign dptr_o = dptr;
   assign x_o   = x;
   assign y_o   = y;
   assign isr_o = isr;
@@ -277,10 +282,13 @@ module pg_core #(
   // OUT: OSR shift (with on-demand autopull)
   // ------------------------------------------------------------------
   wire out_stuff  = out_line & stuff_due;
+  // pull source: the TX FIFO, or instruction memory at dptr (never empty)
+  wire [31:0] pull_data   = pull_imem ? {12'h0, dmem_data} : tx_data;
+  wire        pull_empty  = ~pull_imem & tx_empty;
   wire refill     = is_out & ~out_stuff & autopull & (osr_cnt >= pull_th);
-  wire [31:0] osr_eff     = refill ? tx_data : osr;
+  wire [31:0] osr_eff     = refill ? pull_data : osr;
   wire [5:0]  osr_cnt_eff = refill ? 6'd0 : osr_cnt;
-  wire out_stall  = refill & tx_empty;
+  wire out_stall  = refill & pull_empty;
 
   // One 64-bit funnel serves both directions. Left: {0,osr} << n gives the
   // shifted-out MSBs in the high word and the new OSR in the low word.
@@ -318,9 +326,9 @@ module pg_core #(
   wire pull_skip = pp_if & (osr_cnt < pull_th);
   wire push_go   = is_pp & ~pp_pull & ~push_skip & ~rx_full;
   wire push_drop = is_pp & ~pp_pull & ~push_skip &  rx_full & ~pp_block;
-  wire pull_go   = is_pp &  pp_pull & ~pull_skip & ~tx_empty;
-  wire pull_nb   = is_pp &  pp_pull & ~pull_skip &  tx_empty & ~pp_block;
-  wire pp_stall  = is_pp & pp_block & (pp_pull ? (~pull_skip & tx_empty)
+  wire pull_go   = is_pp &  pp_pull & ~pull_skip & ~pull_empty;
+  wire pull_nb   = is_pp &  pp_pull & ~pull_skip &  pull_empty & ~pp_block;
+  wire pp_stall  = is_pp & pp_block & (pp_pull ? (~pull_skip & pull_empty)
                                                : (~push_skip & rx_full));
 
   // ------------------------------------------------------------------
@@ -421,10 +429,13 @@ module pg_core #(
   wire osr_wr_out  = is_out & ~out_stuff;
   wire osr_wr_mov  = is_mov & (f_hi == 3'd7);
   wire osr_we      = commit & (osr_wr_out | osr_wr_mov | pull_go | pull_nb);
-  wire [31:0] osr_d     = osr_wr_out ? osr_out : pull_go ? tx_data : pull_nb ? x : opd;
+  wire [31:0] osr_d     = osr_wr_out ? osr_out : pull_go ? pull_data : pull_nb ? x : opd;
   wire [5:0]  osr_cnt_d = osr_wr_out ? osr_cnt_out : 6'd0;
 
-  assign tx_pop  = commit & ((osr_wr_out & refill) | pull_go);
+  wire   pulled  = commit & ((osr_wr_out & refill) | pull_go);
+  assign tx_pop  = pulled & ~pull_imem;
+  wire   dptr_inc = pulled & pull_imem;
+  wire   dptr_set = commit & is_set & (f_hi == 3'd4);
   assign rx_push = commit & (push_go | (isr_wr_in & in_push));
   assign rx_data = is_pp ? isr : isr_in;
 
@@ -537,6 +548,7 @@ module pg_core #(
   always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       pc         <= 7'd0;
+      dptr       <= 7'd0;
       x          <= 32'h0;
       y          <= 32'h0;
       isr        <= 32'h0;
@@ -578,6 +590,9 @@ module pg_core #(
 
       if (exec) stalled <= stall;
       if (brk_hit) brk_skip <= 1'b1;
+
+      if (dptr_set)      dptr <= arg[6:0];
+      else if (dptr_inc) dptr <= dptr + 7'd1;
 
       if (x_we) x <= x_d;
       if (y_we) y <= y_d;

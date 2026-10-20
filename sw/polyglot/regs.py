@@ -44,6 +44,7 @@ class CoreConfig:
     out_right: bool = True          # True: LSB first
     in_right: bool = True           # True: bits enter at the MSB end
     pull_thresh: int = 32
+    pull_imem: bool = False         # PULL/autopull read instruction memory at DPTR
     push_thresh: int = 32
     out_base: int = 0
     set_base: int = 0
@@ -70,7 +71,7 @@ class CoreConfig:
             ex |= (1 << 31) | ((self.brk & 0x7F) << 24)
         sh = int(self.autopull) | (int(self.autopush) << 1) | (int(self.out_right) << 2) | \
              (int(self.in_right) << 3) | ((self.pull_thresh & 31) << 4) | \
-             ((self.push_thresh & 31) << 9)
+             ((self.push_thresh & 31) << 9) | (int(self.pull_imem) << 14)
         pn = (self.out_base & 7) | ((self.set_base & 7) << 3) | \
              (((self.set_count - 1) & 7) << 6) | ((self.in_base & 7) << 9)
         pm = 0

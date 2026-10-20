@@ -17,7 +17,7 @@ from polyglot.model import Chip  # noqa: E402
 
 CORE_FIELDS = {
     # model field: RTL signal
-    "pc": "pc", "x": "x", "y": "y", "isr": "isr", "osr": "osr", "crc": "crc",
+    "pc": "pc", "dptr": "dptr", "x": "x", "y": "y", "isr": "isr", "osr": "osr", "crc": "crc",
     "isr_cnt": "isr_cnt", "osr_cnt": "osr_cnt", "delay": "delay_cnt",
     "div": "div_cnt", "vout": "vout", "voe": "voe", "to": "to_flag",
     "armed": "irq_armed", "inj_pend": "inj_pend", "brk_skip": "brk_skip",

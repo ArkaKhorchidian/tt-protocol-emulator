@@ -15,6 +15,11 @@
  * come straight from the host SPI word register, which changes only once
  * every 32 SCK edges.
  *
+ * Each bank's port is addressed by its owner's PC while the owner executes
+ * from that bank, and by the owner's data pointer (DPTR) otherwise: a core
+ * can stream data from a bank it owns but is not running from (PULL from
+ * imem), e.g. a canned Ethernet frame or USB descriptor.
+ *
  * Storage is write-only from the host's side; contents can be read back
  * through a halted core's INSTR register.
  *
@@ -31,7 +36,9 @@ module pg_imem (
     input  wire [19:0] wdata,
     input  wire [7:0]  bankmap,      // owner core of bank b = bankmap[2b+1:2b]
     input  wire [27:0] pcs,          // {pc3, pc2, pc1, pc0}
-    output wire [79:0] rdata         // {instr3, instr2, instr1, instr0}
+    input  wire [27:0] dptrs,        // {dptr3, ..., dptr0}
+    output wire [79:0] rdata,        // instruction at each core's pc
+    output wire [79:0] ddata         // data word at each core's dptr
 );
 
   reg wpend;
@@ -56,13 +63,20 @@ module pg_imem (
     for (b = 0; b < 4; b = b + 1) begin : g_bank
       wire [1:0]  owner = bankmap[2*b+1:2*b];
       wire [6:0]  opc   = pcs[7*owner +: 7];
-      wire [19:0] bq    = q[b*32 + opc[4:0]];
+      wire [6:0]  odp   = dptrs[7*owner +: 7];
+      wire [4:0]  ra    = (opc[6:5] == b) ? opc[4:0] : odp[4:0];
+      wire [19:0] bq    = q[b*32 + ra];
     end
     for (c = 0; c < 4; c = c + 1) begin : g_core
       wire [6:0] cpc = pcs[7*c +: 7];
+      wire [6:0] cdp = dptrs[7*c +: 7];
       assign rdata[20*c +: 20] = (cpc[6:5] == 2'd0) ? g_bank[0].bq :
                                  (cpc[6:5] == 2'd1) ? g_bank[1].bq :
                                  (cpc[6:5] == 2'd2) ? g_bank[2].bq :
+                                                      g_bank[3].bq;
+      assign ddata[20*c +: 20] = (cdp[6:5] == 2'd0) ? g_bank[0].bq :
+                                 (cdp[6:5] == 2'd1) ? g_bank[1].bq :
+                                 (cdp[6:5] == 2'd2) ? g_bank[2].bq :
                                                       g_bank[3].bq;
     end
   endgenerate
