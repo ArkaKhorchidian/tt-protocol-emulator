@@ -35,10 +35,10 @@ module pg_imem (
     input  wire [6:0]  waddr,
     input  wire [19:0] wdata,
     input  wire [7:0]  bankmap,      // owner core of bank b = bankmap[2b+1:2b]
-    input  wire [27:0] pcs,          // {pc3, pc2, pc1, pc0}
-    input  wire [27:0] dptrs,        // {dptr3, ..., dptr0}
-    output wire [79:0] rdata,        // instruction at each core's pc
-    output wire [79:0] ddata         // data word at each core's dptr
+    input  wire [27:0] pcs,          // next pc of each core {pc3..pc0}
+    input  wire [27:0] dptrs,        // next dptr of each core
+    output reg  [79:0] rdata,        // registered: instruction at each pc
+    output reg  [79:0] ddata         // registered: data word at each dptr
 );
 
   reg wpend;
@@ -70,14 +70,24 @@ module pg_imem (
     for (c = 0; c < 4; c = c + 1) begin : g_core
       wire [6:0] cpc = pcs[7*c +: 7];
       wire [6:0] cdp = dptrs[7*c +: 7];
-      assign rdata[20*c +: 20] = (cpc[6:5] == 2'd0) ? g_bank[0].bq :
-                                 (cpc[6:5] == 2'd1) ? g_bank[1].bq :
-                                 (cpc[6:5] == 2'd2) ? g_bank[2].bq :
-                                                      g_bank[3].bq;
-      assign ddata[20*c +: 20] = (cdp[6:5] == 2'd0) ? g_bank[0].bq :
-                                 (cdp[6:5] == 2'd1) ? g_bank[1].bq :
-                                 (cdp[6:5] == 2'd2) ? g_bank[2].bq :
-                                                      g_bank[3].bq;
+      wire [19:0] rq = (cpc[6:5] == 2'd0) ? g_bank[0].bq :
+                       (cpc[6:5] == 2'd1) ? g_bank[1].bq :
+                       (cpc[6:5] == 2'd2) ? g_bank[2].bq :
+                                            g_bank[3].bq;
+      wire [19:0] dq = (cdp[6:5] == 2'd0) ? g_bank[0].bq :
+                       (cdp[6:5] == 2'd1) ? g_bank[1].bq :
+                       (cdp[6:5] == 2'd2) ? g_bank[2].bq :
+                                            g_bank[3].bq;
+      // fetch-next registers: the memory read is a stage of its own
+      always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+          rdata[20*c +: 20] <= 20'h0;
+          ddata[20*c +: 20] <= 20'h0;
+        end else begin
+          rdata[20*c +: 20] <= rq;
+          ddata[20*c +: 20] <= dq;
+        end
+      end
     end
   endgenerate
 

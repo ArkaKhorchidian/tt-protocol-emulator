@@ -36,10 +36,14 @@ module pg_core #(
     input  wire [23:0] cfg_line,
     input  wire [31:0] cfg_poly,
 
-    // instruction memory: fetch at pc, data at dptr
+    // instruction memory. The memory registers imem[pc_nxt] and
+    // imem[dptr_nxt] at each edge, so imem_data/dmem_data are the word at
+    // the current pc/dptr without a memory read in the execute path.
     output wire [6:0]  pc_o,
+    output wire [6:0]  pc_nxt_o,
     input  wire [19:0] imem_data,
     output wire [6:0]  dptr_o,
+    output wire [6:0]  dptr_nxt_o,
     input  wire [19:0] dmem_data,
 
     // host direct register writes
@@ -534,6 +538,11 @@ module pg_core #(
   wire [6:0] jaddr = is_jmp ? arg[6:0] : jump_out ? out_data[6:0] : opd[6:0];
   wire [6:0] pc_seq = inj_pend ? pc : (pc == wrap_top) ? wrap_bot : pc + 7'd1;
   wire [6:0] pc_d   = (jump_cond | jump_out | jump_mov) ? jaddr : pc_seq;
+
+  // next-state values of pc/dptr (what the registers below will hold),
+  // used by the memory's fetch-next registers
+  assign pc_nxt_o   = hw_pc ? hw_data[6:0] : commit ? pc_d : pc;
+  assign dptr_nxt_o = dptr_set ? arg[6:0] : dptr_inc ? dptr + 7'd1 : dptr;
 
   // IRQ outputs
   wire irq_do_set = is_irq & ~irq_clear & (~arg[5] | ~irq_armed);

@@ -87,6 +87,11 @@ stream. `uo[1]` is an interrupt line (IRQ flags / FIFO status, maskable).
    cycle-accurate reference model and ready-made firmware. The cocotb
    tests in `test/` show complete host sequences for UART, SPI and I2C.
 
+Clocking: timing is signed off at 33 MHz at the slow corner
+(1.08 V, 125 °C). Typical silicon should run faster. The USB low-speed
+firmware assumes 48 MHz (32 ticks per bit) and 10BASE-T needs 40 MHz
+(4 ticks per bit); lower clocks work with adjusted firmware delays.
+
 Notes: unused output-only pads read 0 until a core drives them, so set
 idle levels before enabling receivers. Pad inputs pass through a 2-flop
 synchroniser, so use CLKDIV ≥ 1 for SPI so MISO samples have margin.

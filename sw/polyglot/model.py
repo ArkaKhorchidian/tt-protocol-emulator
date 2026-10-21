@@ -584,6 +584,10 @@ class Chip:
         self.sync1 = 0x0200
         self.sync2 = 0x0200
         self.miso = 0
+        # fetch-next registers: word at each core's pc / dptr, read from the
+        # memory at the previous edge (so execute never waits on a read)
+        self.ir = [0] * 4
+        self.dr = [0] * 4
 
     # -------- combinational views of the current state --------
     def drive(self):
@@ -614,9 +618,9 @@ class Chip:
         uo = self.outputs()["uo_out"]
         return ((val >> 24) & 0xFF) << 24 | uo << 16 | self.sync2
 
-    def bank_word(self, bank):
+    def bank_word(self, bank, bankmap=None):
         """Read port of a bank: owner's pc if it executes there, else its dptr."""
-        owner = (self.bankmap >> (2 * bank)) & 3
+        owner = ((self.bankmap if bankmap is None else bankmap) >> (2 * bank)) & 3
         if owner < self.ncores:
             o = self.cores[owner]
             a = o.pc if (o.pc >> 5) == bank else o.dptr
@@ -626,10 +630,16 @@ class Chip:
         return 0 if w is None else w
 
     def fetch(self, cid):
-        return self.bank_word(self.cores[cid].pc >> 5)
+        return self.ir[cid]
 
     def fetch_data(self, cid):
-        return self.bank_word(self.cores[cid].dptr >> 5)
+        return self.dr[cid]
+
+    def _read_next(self):
+        """Fetch-next registers: memory read at the (new) pc/dptr."""
+        ir = [self.bank_word(self.cores[c].pc >> 5) if c < self.ncores else 0 for c in range(4)]
+        dr = [self.bank_word(self.cores[c].dptr >> 5) if c < self.ncores else 0 for c in range(4)]
+        return ir, dr
 
     # -------- host access --------
     def read(self, addr):
@@ -674,6 +684,7 @@ class Chip:
         miso: value of the SPI MISO flop during this cycle (not modelled)
         """
         self.miso = miso
+        imem_pre, bankmap_pre = list(self.imem), self.bankmap
         phys = self.phys_in()
         restart, step, divsync, fclr = self.pulses
         new_pulses = (0, 0, 0, 0)
@@ -771,6 +782,12 @@ class Chip:
                     self.txf[i].pend = data
         self.irq = ((self.irq & ~(iclr | hclr)) | iset | hset) & 0xFF
         self.pulses = new_pulses
+
+        # fetch-next registers sample the memory as it was during this cycle
+        imem_post, bankmap_post = self.imem, self.bankmap
+        self.imem, self.bankmap = imem_pre, bankmap_pre
+        self.ir, self.dr = self._read_next()
+        self.imem, self.bankmap = imem_post, bankmap_post
 
         # synchroniser
         self.sync2 = self.sync1
